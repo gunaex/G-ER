@@ -1,0 +1,44 @@
+# RetroEarthERP Backend - Production Dockerfile
+# FastAPI + Uvicorn + PostgreSQL
+
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first (for better caching)
+COPY backend/requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY backend/ .
+
+# Create non-root user for security
+RUN useradd -m -u 1000 erp && chown -R erp:erp /app
+USER erp
+
+# Environment variables (can be overridden by docker-compose)
+ENV PYTHONUNBUFFERED=1
+ENV DATABASE_URL=postgresql://erp_user:erp_password@postgres:5432/retroearperp
+ENV SECRET_KEY=your-secret-key-change-in-production
+ENV CORS_ORIGINS=http://localhost:3000
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:8000/api/health || exit 1
+
+# Run application
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
